@@ -29,6 +29,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
   String? _successMessage;
   String? _errorMessage;
   String? _referralSlug;
+  late Future<Map<String, dynamic>> _campaignDetailsFuture;
 
   @override
   void initState() {
@@ -36,6 +37,7 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
     if (widget.profile != null) {
       _referralSlug = 'c-${widget.profile!.id.substring(0, 5)}-${widget.campaign.id.substring(0, 5)}';
     }
+    _campaignDetailsFuture = SupabaseService.fetchCampaignWithAssets(widget.campaign.id);
   }
 
   @override
@@ -215,20 +217,58 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               const SizedBox(height: 24),
             ],
 
-            // 3. VIRAL PLAYBOOK & HOOKS
+            // 3. LIVE CREATIVE PLAYBOOK & HOOKS (Queried from Supabase)
             const Text(
-              'CREATIVE PLAYBOOK & HOOKS',
+              'CREATIVE PLAYBOOK & GUIDELINES',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: ViralyTheme.textMuted),
             ),
             const SizedBox(height: 10),
-            _buildHookCard(
-              'Hook Angle 1: "The House Hunt Dilemma"',
-              '“If you are still paying 100k agency fee for house in Lagos, you need to watch this right now…”',
-            ),
-            const SizedBox(height: 10),
-            _buildHookCard(
-              'Hook Angle 2: "POV / Reality Check"',
-              '“POV: Finding a clean 1-bedroom in Yaba with 0 landlord drama using Rentilly.”',
+
+            FutureBuilder<Map<String, dynamic>>(
+              future: _campaignDetailsFuture,
+              builder: (context, snapshot) {
+                final assets = (snapshot.data?['assets'] as List<CampaignAsset>?) ?? [];
+
+                if (assets.isEmpty) {
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: ViralyTheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: ViralyTheme.border),
+                    ),
+                    child: Text(
+                      'Follow the brand instructions in the description above. Ensure your video is high quality and tags @${campaign.title.toLowerCase().replaceAll(' ', '')}.',
+                      style: TextStyle(fontSize: 12, color: ViralyTheme.textSecondary, height: 1.4),
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: assets.map((asset) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: ViralyTheme.surface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: ViralyTheme.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(asset.title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                            const SizedBox(height: 4),
+                            Text(asset.contentOrUrl, style: TextStyle(fontSize: 12, color: ViralyTheme.textSecondary, fontStyle: FontStyle.italic)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
             ),
 
             const SizedBox(height: 28),
@@ -330,25 +370,6 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
         const SizedBox(height: 4),
         Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
       ],
-    );
-  }
-
-  Widget _buildHookCard(String title, String quote) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ViralyTheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ViralyTheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-          const SizedBox(height: 4),
-          Text(quote, style: TextStyle(fontSize: 12, color: ViralyTheme.textSecondary, fontStyle: FontStyle.italic)),
-        ],
-      ),
     );
   }
 }
