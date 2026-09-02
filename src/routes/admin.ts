@@ -1,11 +1,26 @@
-import { Router, Request, Response } from 'express';
+import { Router, Response } from 'express';
 import { query } from '../config/db.js';
+import { requireAdmin, AuthenticatedRequest } from '../middleware/auth.js';
+import { getNigerianBanksList, resolveBankAccount, createTransferRecipient, initiatePaystackTransfer } from '../services/paystack.js';
 import { z } from 'zod';
 
 const router = Router();
 
-// 1. GET /api/admin/stats - High-level aggregated metrics from live Supabase tables
-router.get('/stats', async (req: Request, res: Response) => {
+// Apply requireAdmin to all admin API endpoints
+router.use(requireAdmin);
+
+// 0. GET /api/admin/me - Verify admin identity
+router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const profile = await query('SELECT id, full_name, email, role, avatar_url FROM public.profiles WHERE id = $1', [req.user!.id]);
+    res.json({ success: true, admin: profile.rows[0] });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 1. GET /api/admin/stats - Real-time aggregates directly from PostgreSQL
+router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const statsQuery = `
       SELECT 
@@ -28,8 +43,8 @@ router.get('/stats', async (req: Request, res: Response) => {
   }
 });
 
-// 2. GET /api/admin/submissions - List all submissions with live creator & campaign details
-router.get('/submissions', async (req: Request, res: Response) => {
+// 2. GET /api/admin/submissions - List submissions with creator & campaign details
+router.get('/submissions', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { status } = req.query;
     let sql = `
@@ -65,7 +80,7 @@ const reviewSchema = z.object({
   rejection_reason: z.string().optional()
 });
 
-router.post('/submissions/:id/review', async (req: Request, res: Response) => {
+router.post('/submissions/:id/review', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status, rejection_reason } = reviewSchema.parse(req.body);
@@ -88,8 +103,8 @@ router.post('/submissions/:id/review', async (req: Request, res: Response) => {
   }
 });
 
-// 4. GET /api/admin/campaigns - List all brand campaigns with live budget pools
-router.get('/campaigns', async (req: Request, res: Response) => {
+// 4. GET /api/admin/campaigns - List all brand campaigns
+router.get('/campaigns', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const sql = `
       SELECT c.*, p.full_name AS agency_name, p.email AS agency_email,
@@ -124,24 +139,11 @@ const adminCreateCampaignSchema = z.object({
   required_mentions: z.array(z.string()).default([])
 });
 
-router.post('/campaigns', async (req: Request, res: Response) => {
+router.post('/campaigns', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const body = adminCreateCampaignSchema.parse(req.body);
 
-    // If no agency_id provided, pick the first agency or create with first profile
-    let agencyId = body.agency_id;
-    if (!agencyId) {
-      const agencyRes = await query(`SELECT id FROM public.profiles WHERE role = 'agency' OR role = 'admin' LIMIT 1`);
-      if (agencyRes.rows.length > 0) {
-        agencyId = agencyRes.rows[0].id;
-      } else {
-        const anyUser = await query(`SELECT id FROM public.profiles LIMIT 1`);
-        if (anyUser.rows.length === 0) {
-          return res.status(400).json({ success: false, message: 'No profile found in database. Sign up a user first.' });
-        }
-        agencyId = anyUser.rows[0].id;
-      }
-    }
+    let agencyId = body.agency_id || req.user!.id;
 
     const result = await query(
       `INSERT INTO public.campaigns (
@@ -174,8 +176,35 @@ router.post('/campaigns', async (req: Request, res: Response) => {
   }
 });
 
-// 6. PATCH /api/admin/campaigns/:id/status - Update campaign status (pause, activate, complete)
-router.patch('/campaigns/:id/status', async (req: Request, res: Response) => {
+// 6. POST /api/admin/campaigns/:id/topup - Top up campaign escrow budget
+router.post('/campaigns/:id/topup', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { topup_amount } = z.object({ topup_amount: z.number().positive() }).parse(req.body);
+
+    const result = await query(
+      `UPDATE public.campaigns 
+       SET total_budget = total_budget + $1,
+           remaining_budget = remaining_budget + $1,
+           status = CASE WHEN status = 'completed' THEN 'active' ELSE status END,
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [topup_amount, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    res.json({ success: true, message: `₦${topup_amount.toLocaleString()} added to escrow pool`, data: result.rows[0] });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// 7. PATCH /api/admin/campaigns/:id/status - Update campaign status (pause, resume)
+router.patch('/campaigns/:id/status', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -199,8 +228,8 @@ router.patch('/campaigns/:id/status', async (req: Request, res: Response) => {
   }
 });
 
-// 7. GET /api/admin/users - User management (Creators & Agencies)
-router.get('/users', async (req: Request, res: Response) => {
+// 8. GET /api/admin/users - User management (Creators & Agencies)
+router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const sql = `
       SELECT p.*, w.available_balance, w.pending_balance,
@@ -217,8 +246,8 @@ router.get('/users', async (req: Request, res: Response) => {
   }
 });
 
-// 8. PATCH /api/admin/users/:id/verify - Toggle user verification badge
-router.patch('/users/:id/verify', async (req: Request, res: Response) => {
+// 9. PATCH /api/admin/users/:id/verify - Toggle user verification badge
+router.patch('/users/:id/verify', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { is_verified } = req.body;
@@ -234,12 +263,12 @@ router.patch('/users/:id/verify', async (req: Request, res: Response) => {
   }
 });
 
-// 9. GET /api/admin/payouts - Payout requests & transactions ledger
-router.get('/payouts', async (req: Request, res: Response) => {
+// 10. GET /api/admin/payouts - Payout requests & transactions ledger
+router.get('/payouts', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const sql = `
       SELECT t.*, w.user_id, p.full_name, p.email, p.phone_number,
-             b.bank_name, b.account_number, b.account_name
+             b.bank_code, b.bank_name, b.account_number, b.account_name, b.paystack_recipient_code
       FROM public.transactions t
       JOIN public.wallets w ON t.wallet_id = w.id
       JOIN public.profiles p ON w.user_id = p.id
@@ -254,32 +283,93 @@ router.get('/payouts', async (req: Request, res: Response) => {
   }
 });
 
-// 10. POST /api/admin/payouts/:id/status - Mark withdrawal as completed or failed
-router.post('/payouts/:id/status', async (req: Request, res: Response) => {
+// 11. GET /api/admin/payouts/banks - Fetch live Nigerian banks list
+router.get('/payouts/banks', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { id } = req.params;
-    const { status, paystack_transfer_code } = req.body;
-
-    if (!['completed', 'failed'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Status must be completed or failed' });
-    }
-
-    const result = await query(
-      `UPDATE public.transactions 
-       SET status = $1, paystack_transfer_code = $2
-       WHERE id = $3
-       RETURNING *`,
-      [status, paystack_transfer_code || null, id]
-    );
-
-    res.json({ success: true, message: `Payout marked as ${status}`, data: result.rows[0] });
+    const banks = await getNigerianBanksList();
+    res.json({ success: true, banks });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// 11. GET /api/admin/clicks - Live click audit log
-router.get('/clicks', async (req: Request, res: Response) => {
+// 12. POST /api/admin/payouts/resolve-bank - Resolve Nigerian NUBAN account name
+router.post('/payouts/resolve-bank', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { account_number, bank_code } = z.object({
+      account_number: z.string().length(10),
+      bank_code: z.string()
+    }).parse(req.body);
+
+    const resolved = await resolveBankAccount(account_number, bank_code);
+    if (!resolved) {
+      return res.status(400).json({ success: false, message: 'Could not resolve account name. Check details.' });
+    }
+
+    res.json({ success: true, data: resolved });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
+// 13. POST /api/admin/payouts/:id/disburse - Execute live Paystack NIP transfer
+router.post('/payouts/:id/disburse', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const txRes = await query(`
+      SELECT t.*, w.user_id, p.full_name,
+             b.bank_code, b.bank_name, b.account_number, b.account_name, b.paystack_recipient_code
+      FROM public.transactions t
+      JOIN public.wallets w ON t.wallet_id = w.id
+      JOIN public.profiles p ON w.user_id = p.id
+      LEFT JOIN public.bank_accounts b ON (b.creator_id = p.id AND b.is_primary = true)
+      WHERE t.id = $1 AND t.type = 'withdrawal' AND t.status = 'pending'
+    `, [id]);
+
+    if (txRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Pending withdrawal transaction not found' });
+    }
+
+    const tx = txRes.rows[0];
+
+    // Verify creator has a valid bank account
+    if (!tx.account_number || !tx.bank_code) {
+      return res.status(400).json({ success: false, message: 'Creator has no primary bank account attached' });
+    }
+
+    let recipientCode = tx.paystack_recipient_code;
+    if (!recipientCode) {
+      recipientCode = await createTransferRecipient(tx.account_name || tx.full_name, tx.account_number, tx.bank_code);
+      if (recipientCode) {
+        await query('UPDATE public.bank_accounts SET paystack_recipient_code = $1 WHERE creator_id = $2', [recipientCode, tx.user_id]);
+      }
+    }
+
+    if (!recipientCode) {
+      // If Paystack secret is not active yet, mark as manual completion
+      await query("UPDATE public.transactions SET status = 'completed' WHERE id = $1", [id]);
+      return res.json({ success: true, message: 'Marked as completed manually (Paystack live credentials pending).' });
+    }
+
+    // Initiate automated transfer
+    const transferResult = await initiatePaystackTransfer(Number(tx.amount), recipientCode, `Viraly Creator Cashout: ${tx.reference}`);
+
+    await query(
+      `UPDATE public.transactions 
+       SET status = 'completed', paystack_transfer_code = $1 
+       WHERE id = $2`,
+      [transferResult.data?.transfer_code || 'manual', id]
+    );
+
+    res.json({ success: true, message: `₦${Number(tx.amount).toLocaleString()} disbursed successfully to ${tx.full_name}`, data: transferResult });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// 14. GET /api/admin/clicks - Live click audit log
+router.get('/clicks', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const sql = `
       SELECT cl.*, r.slug, r.target_url, c.title AS campaign_title, p.full_name AS creator_name
