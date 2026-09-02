@@ -56,7 +56,6 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Top Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -90,7 +89,6 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
 
                 const SizedBox(height: 20),
 
-                // Aggregates FutureBuilder
                 FutureBuilder<List<Campaign>>(
                   future: _campaignsFuture,
                   builder: (context, snapshot) {
@@ -101,7 +99,6 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Metric Cards
                         Row(
                           children: [
                             Expanded(
@@ -156,7 +153,6 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
 
                         const SizedBox(height: 24),
 
-                        // Launch Campaign CTA
                         SizedBox(
                           width: double.infinity,
                           height: 52,
@@ -190,7 +186,6 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
 
                         const SizedBox(height: 28),
 
-                        // Active Campaigns List
                         const Text(
                           'YOUR CAMPAIGNS',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: ViralyTheme.textMuted),
@@ -228,7 +223,7 @@ class _AgencyHomeScreenState extends State<AgencyHomeScreen> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: campaigns.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 14),
+                            separatorBuilder: (context, index) => const SizedBox(height: 14),
                             itemBuilder: (context, index) {
                               final camp = campaigns[index];
                               return Container(

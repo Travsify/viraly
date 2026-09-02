@@ -56,6 +56,19 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
     }
   }
 
+  // Dynamic Tier & Rank Calculator
+  Map<String, dynamic> _getCreatorTier(double balance) {
+    if (balance >= 500000) {
+      return {'title': 'Gold Viral Pro', 'color': const Color(0xFFFFD700), 'icon': LucideIcons.crown};
+    } else if (balance >= 100000) {
+      return {'title': 'Silver Creator', 'color': const Color(0xFFC0C0C0), 'icon': LucideIcons.medal};
+    } else if (balance >= 25000) {
+      return {'title': 'Bronze Creator', 'color': const Color(0xFFCD7F32), 'icon': LucideIcons.award};
+    } else {
+      return {'title': 'Rising Creator', 'color': ViralyTheme.teal, 'icon': LucideIcons.sparkles};
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final creatorName = widget.profile?.fullName.split(' ').first ?? 'Creator';
@@ -77,13 +90,12 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. TOP HEADER (Neo-Dark Style)
+                // 1. TOP HEADER
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: [
-                        // Profile Avatar
                         Container(
                           width: 44,
                           height: 44,
@@ -105,47 +117,55 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  'Hi $creatorName 👋',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              'Hi $creatorName 👋',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
                             ),
                             const SizedBox(height: 2),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFCD7F32).withAlpha(30),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(LucideIcons.award, size: 10, color: Color(0xFFCD7F32)),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Bronze Creator',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFFCD7F32),
-                                    ),
+
+                            // Dynamic Tier Indicator
+                            FutureBuilder<Wallet>(
+                              future: _walletFuture,
+                              builder: (context, snapshot) {
+                                final bal = snapshot.data?.availableBalance ?? 0.0;
+                                final tier = _getCreatorTier(bal);
+                                final color = tier['color'] as Color;
+                                final title = tier['title'] as String;
+                                final icon = tier['icon'] as IconData;
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: color.withAlpha(25),
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
-                                ],
-                              ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(icon, size: 10, color: color),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        title,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w800,
+                                          color: color,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
                       ],
                     ),
 
-                    // Notification Bell
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
@@ -160,7 +180,7 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
 
                 const SizedBox(height: 20),
 
-                // 2. GLOWING WALLET BALANCE CARD (Option 1 Design)
+                // 2. GLOWING WALLET BALANCE CARD
                 FutureBuilder<Wallet>(
                   future: _walletFuture,
                   builder: (context, snapshot) {
@@ -217,7 +237,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                             ],
                           ),
 
-                          // Withdraw CTA
                           ElevatedButton(
                             onPressed: widget.onNavigateToWallet,
                             style: ElevatedButton.styleFrom(
@@ -288,7 +307,7 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
 
                 const SizedBox(height: 24),
 
-                // 4. ACTIVE CAMPAIGN BOUNTY CARDS (100% Live from Supabase)
+                // 4. ACTIVE CAMPAIGN BOUNTY CARDS
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -370,7 +389,7 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: campaigns.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                      separatorBuilder: (context, index) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
                         final campaign = campaigns[index];
                         return _buildCampaignCard(campaign);
@@ -401,7 +420,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Brand Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -452,7 +470,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                 ],
               ),
 
-              // Category Badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -474,7 +491,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
 
           const SizedBox(height: 16),
 
-          // Payout Rate Badge (e.g. ₦1,500 per 10k views + ₦30/click)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -511,7 +527,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
 
           const SizedBox(height: 14),
 
-          // Escrow Pool Progress Bar
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -551,7 +566,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
 
           const SizedBox(height: 16),
 
-          // Creator Cap & CTA Button
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -575,7 +589,6 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                 ],
               ),
 
-              // Accept Gig Button
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(

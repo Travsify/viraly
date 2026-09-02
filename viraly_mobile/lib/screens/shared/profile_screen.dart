@@ -119,7 +119,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // User Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -183,7 +182,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 24),
 
-            // Profile Fields
             const Text(
               'CREATOR PROFILE DETAILS',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: ViralyTheme.textMuted),
@@ -214,7 +212,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 32),
 
-            // Switch Mode Card
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -258,20 +255,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 32),
 
-            // Logout Button
             SizedBox(
               width: double.infinity,
               height: 50,
               child: OutlinedButton(
                 onPressed: () async {
                   await Supabase.instance.client.auth.signOut();
-                  if (mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-                      (route) => false,
-                    );
-                  }
+                  if (!context.mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                    (route) => false,
+                  );
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: ViralyTheme.rose),

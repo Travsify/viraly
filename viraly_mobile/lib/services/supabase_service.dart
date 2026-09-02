@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/constants.dart';
 import '../models/campaign.dart';
 import '../models/submission.dart';
 import '../models/profile.dart';
@@ -79,7 +82,6 @@ class SupabaseService {
       'status': 'pending_review',
     }).select().single();
 
-    // Auto-create referral shortlink if campaign has a destination
     final camp = await _client.from('campaigns').select('target_destination_url').eq('id', campaignId).single();
     if (camp['target_destination_url'] != null) {
       final slug = 'c-${creatorId.substring(0, 5)}-${campaignId.substring(0, 5)}';
@@ -114,7 +116,41 @@ class SupabaseService {
     return (data as List).map((t) => WalletTransaction.fromJson(t)).toList();
   }
 
-  // 7. Request Cashout / Withdrawal
+  // 7. Live NUBAN Nigerian Bank Account Resolver
+  static Future<String?> resolveBankAccount({
+    required String accountNumber,
+    required String bankCode,
+  }) async {
+    try {
+      final url = Uri.parse('${ViralyConstants.apiBaseUrl}/api/admin/payouts/resolve-bank');
+      final session = _client.auth.currentSession;
+      final token = session?.accessToken ?? '';
+
+      final res = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'account_number': accountNumber,
+          'bank_code': bankCode,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['success'] == true && json['data'] != null) {
+          return json['data']['account_name'] as String?;
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 8. Request Cashout / Withdrawal
   static Future<void> requestWithdrawal({
     required String walletId,
     required String userId,
@@ -122,19 +158,18 @@ class SupabaseService {
     required String bankDetailsDescription,
   }) async {
     final ref = 'wdr_${DateTime.now().millisecondsSinceEpoch}_${userId.substring(0, 5)}';
-    
+
     // Deduct from wallet balance
     await _client.rpc('decrement_wallet_balance', params: {
       'p_wallet_id': walletId,
       'p_amount': amount,
     }).catchError((_) async {
-      // Fallback direct update
       final w = await _client.from('wallets').select('available_balance').eq('id', walletId).single();
       final currentBal = (w['available_balance'] as num).toDouble();
       await _client.from('wallets').update({'available_balance': currentBal - amount}).eq('id', walletId);
     });
 
-    // Record pending transaction
+    // Record transaction
     await _client.from('transactions').insert({
       'wallet_id': walletId,
       'type': 'withdrawal',
@@ -145,7 +180,7 @@ class SupabaseService {
     });
   }
 
-  // 8. Agency Operations (Campaigns & Approvals)
+  // 9. Agency Operations
   static Future<List<Campaign>> fetchAgencyCampaigns(String agencyId) async {
     final data = await _client.from('campaigns').select().eq('agency_id', agencyId).order('created_at', ascending: false);
     return (data as List).map((c) => Campaign.fromJson(c)).toList();

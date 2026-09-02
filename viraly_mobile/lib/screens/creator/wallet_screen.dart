@@ -52,8 +52,12 @@ class _WalletScreenState extends State<WalletScreen> {
 
   void _openCashoutModal(Wallet wallet, List<BankAccount> bankAccounts) {
     final amountController = TextEditingController();
-    String selectedBank = 'OPay';
     final accountNumberController = TextEditingController();
+
+    String selectedBankCode = '999992'; // OPay
+    String selectedBankName = 'OPay Digital Services';
+    String? resolvedAccountName;
+    bool isResolving = false;
 
     showModalBottomSheet(
       context: context,
@@ -63,181 +67,251 @@ class _WalletScreenState extends State<WalletScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            void tryResolve() async {
+              final acc = accountNumberController.text.trim();
+              if (acc.length == 10) {
+                setModalState(() {
+                  isResolving = true;
+                  resolvedAccountName = null;
+                });
+                final name = await SupabaseService.resolveBankAccount(
+                  accountNumber: acc,
+                  bankCode: selectedBankCode,
+                );
+                setModalState(() {
+                  isResolving = false;
+                  resolvedAccountName = name;
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 24,
+                bottom: MediaQuery.of(modalCtx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Withdraw Earnings',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Withdraw Earnings',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(modalCtx),
+                        icon: const Icon(LucideIcons.x, color: ViralyTheme.textMuted, size: 20),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(LucideIcons.x, color: ViralyTheme.textMuted, size: 20),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Available: ₦${currencyFormatter.format(wallet.availableBalance)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: ViralyTheme.emerald),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Amount Field
+                  Container(
+                    decoration: BoxDecoration(
+                      color: ViralyTheme.background,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: ViralyTheme.border),
+                    ),
+                    child: TextField(
+                      controller: amountController,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                      decoration: const InputDecoration(
+                        hintText: 'Amount (e.g. 10000)',
+                        hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 14),
+                        prefixText: '₦ ',
+                        prefixStyle: TextStyle(color: ViralyTheme.emerald, fontSize: 16, fontWeight: FontWeight.w700),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Bank Selector
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: ViralyTheme.background,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: ViralyTheme.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedBankCode,
+                        dropdownColor: ViralyTheme.surfaceElevated,
+                        isExpanded: true,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                        items: const [
+                          DropdownMenuItem(value: '999992', child: Text('OPay Digital Services')),
+                          DropdownMenuItem(value: '999991', child: Text('PalmPay')),
+                          DropdownMenuItem(value: '50211', child: Text('Kuda Microfinance Bank')),
+                          DropdownMenuItem(value: '50515', child: Text('Moniepoint Microfinance Bank')),
+                          DropdownMenuItem(value: '058', child: Text('Guaranty Trust Bank (GTB)')),
+                          DropdownMenuItem(value: '057', child: Text('Zenith Bank')),
+                          DropdownMenuItem(value: '044', child: Text('Access Bank')),
+                          DropdownMenuItem(value: '033', child: Text('United Bank for Africa (UBA)')),
+                          DropdownMenuItem(value: '011', child: Text('First Bank of Nigeria')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setModalState(() {
+                              selectedBankCode = val;
+                              if (val == '999992') selectedBankName = 'OPay';
+                              if (val == '999991') selectedBankName = 'PalmPay';
+                              if (val == '50211') selectedBankName = 'Kuda Bank';
+                              if (val == '50515') selectedBankName = 'Moniepoint';
+                              if (val == '058') selectedBankName = 'GTBank';
+                              if (val == '057') selectedBankName = 'Zenith Bank';
+                              if (val == '044') selectedBankName = 'Access Bank';
+                              if (val == '033') selectedBankName = 'UBA';
+                              if (val == '011') selectedBankName = 'First Bank';
+                            });
+                            tryResolve();
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Account Number Field with live resolver
+                  Container(
+                    decoration: BoxDecoration(
+                      color: ViralyTheme.background,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: ViralyTheme.border),
+                    ),
+                    child: TextField(
+                      controller: accountNumberController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 10,
+                      onChanged: (_) => tryResolve(),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: '10-Digit NUBAN Account Number',
+                        hintStyle: const TextStyle(color: ViralyTheme.textMuted, fontSize: 13),
+                        counterText: '',
+                        suffixIcon: isResolving
+                            ? const Padding(
+                                padding: EdgeInsets.all(12.0),
+                                child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: ViralyTheme.emerald)),
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                    ),
+                  ),
+
+                  // Account Name Resolution Badge
+                  if (resolvedAccountName != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: ViralyTheme.emerald.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: ViralyTheme.emerald.withAlpha(70)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.checkCircle2, color: ViralyTheme.emerald, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              resolvedAccountName!,
+                              style: const TextStyle(color: ViralyTheme.emerald, fontWeight: FontWeight.w800, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final enteredAmount = double.tryParse(amountController.text.trim()) ?? 0.0;
+                        final accNum = accountNumberController.text.trim();
+
+                        if (enteredAmount <= 0 || enteredAmount > wallet.availableBalance) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Invalid amount or insufficient balance.')),
+                          );
+                          return;
+                        }
+
+                        if (accNum.length != 10) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a valid 10-digit account number.')),
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(modalCtx);
+
+                        try {
+                          final userId = widget.profile?.id ?? SupabaseService.currentUser!.id;
+                          await SupabaseService.requestWithdrawal(
+                            walletId: wallet.id,
+                            userId: userId,
+                            amount: enteredAmount,
+                            bankDetailsDescription: '$selectedBankName ($accNum)${resolvedAccountName != null ? " - $resolvedAccountName" : ""}',
+                          );
+
+                          setState(() {
+                            _loadWalletData();
+                          });
+
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('🎉 Cashout request of ₦${currencyFormatter.format(enteredAmount)} sent for instant Paystack disbursal!'),
+                                backgroundColor: ViralyTheme.emerald,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: ${e.toString()}')),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ViralyTheme.emerald,
+                        foregroundColor: const Color(0xFF07090E),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: const Text('Confirm Cashout via Paystack', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              Text(
-                'Available: ₦${currencyFormatter.format(wallet.availableBalance)}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: ViralyTheme.emerald),
-              ),
-              const SizedBox(height: 16),
-
-              // Amount Field
-              Container(
-                decoration: BoxDecoration(
-                  color: ViralyTheme.background,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: ViralyTheme.border),
-                ),
-                child: TextField(
-                  controller: amountController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
-                  decoration: const InputDecoration(
-                    hintText: 'Amount (e.g. 10000)',
-                    hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 14),
-                    prefixText: '₦ ',
-                    prefixStyle: TextStyle(color: ViralyTheme.emerald, fontSize: 16, fontWeight: FontWeight.w700),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Bank Name Selector
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: ViralyTheme.background,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: ViralyTheme.border),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: selectedBank,
-                    dropdownColor: ViralyTheme.surfaceElevated,
-                    isExpanded: true,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                    items: const [
-                      DropdownMenuItem(value: 'OPay', child: Text('OPay Digital Services')),
-                      DropdownMenuItem(value: 'PalmPay', child: Text('PalmPay')),
-                      DropdownMenuItem(value: 'Kuda', child: Text('Kuda Microfinance Bank')),
-                      DropdownMenuItem(value: 'Moniepoint', child: Text('Moniepoint MFB')),
-                      DropdownMenuItem(value: 'GTBank', child: Text('Guaranty Trust Bank (GTB)')),
-                      DropdownMenuItem(value: 'Zenith', child: Text('Zenith Bank')),
-                      DropdownMenuItem(value: 'Access', child: Text('Access Bank')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) selectedBank = val;
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Account Number Field
-              Container(
-                decoration: BoxDecoration(
-                  color: ViralyTheme.background,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: ViralyTheme.border),
-                ),
-                child: TextField(
-                  controller: accountNumberController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 10,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: const InputDecoration(
-                    hintText: '10-Digit NUBAN Account Number',
-                    hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 13),
-                    counterText: '',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    final enteredAmount = double.tryParse(amountController.text.trim()) ?? 0.0;
-                    final accNum = accountNumberController.text.trim();
-
-                    if (enteredAmount <= 0 || enteredAmount > wallet.availableBalance) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invalid amount or insufficient balance.')),
-                      );
-                      return;
-                    }
-
-                    if (accNum.length != 10) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a valid 10-digit account number.')),
-                      );
-                      return;
-                    }
-
-                    Navigator.pop(ctx);
-
-                    try {
-                      final userId = widget.profile?.id ?? SupabaseService.currentUser!.id;
-                      await SupabaseService.requestWithdrawal(
-                        walletId: wallet.id,
-                        userId: userId,
-                        amount: enteredAmount,
-                        bankDetailsDescription: '$selectedBank ($accNum)',
-                      );
-
-                      setState(() {
-                        _loadWalletData();
-                      });
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('🎉 Cashout request of ₦${currencyFormatter.format(enteredAmount)} sent for instant Paystack disbursal!'),
-                            backgroundColor: ViralyTheme.emerald,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: ${e.toString()}')),
-                        );
-                      }
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ViralyTheme.emerald,
-                    foregroundColor: const Color(0xFF07090E),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('Confirm Cashout via Paystack', style: TextStyle(fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -280,7 +354,6 @@ class _WalletScreenState extends State<WalletScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // HERO WALLET BALANCE CARD
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
@@ -364,7 +437,6 @@ class _WalletScreenState extends State<WalletScreen> {
 
                   const SizedBox(height: 28),
 
-                  // TRANSACTIONS LEDGER
                   const Text(
                     'RECENT TRANSACTIONS',
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2, color: ViralyTheme.textMuted),
@@ -392,7 +464,7 @@ class _WalletScreenState extends State<WalletScreen> {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: transactions.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      separatorBuilder: (context, index) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final tx = transactions[index];
                         final isWithdrawal = tx.type == 'withdrawal';

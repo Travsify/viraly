@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
@@ -17,7 +16,6 @@ class ReviewSubmissionsScreen extends StatefulWidget {
 }
 
 class _ReviewSubmissionsScreenState extends State<ReviewSubmissionsScreen> {
-  final currencyFormatter = NumberFormat('#,##0', 'en_US');
   late Future<List<Submission>> _submissionsFuture;
 
   @override
@@ -89,7 +87,7 @@ class _ReviewSubmissionsScreenState extends State<ReviewSubmissionsScreen> {
             return ListView.separated(
               padding: const EdgeInsets.all(20),
               itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemBuilder: (context, index) {
                 final sub = list[index];
                 return Container(

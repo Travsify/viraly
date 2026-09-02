@@ -86,7 +86,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Go to the Gigs tab, pick a brand campaign like Rentilly, and submit your TikTok video URL.',
+                        'Go to the Gigs tab, select an active campaign, and submit your TikTok video URL.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: ViralyTheme.textSecondary),
                       ),
@@ -99,7 +99,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
             return ListView.separated(
               padding: const EdgeInsets.all(20),
               itemCount: list.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemBuilder: (context, index) {
                 final sub = list[index];
                 return _buildSubmissionCard(sub);
@@ -166,7 +166,6 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
 
           const SizedBox(height: 14),
 
-          // Metrics Grid
           Row(
             children: [
               Expanded(
@@ -215,7 +214,6 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
 
           const SizedBox(height: 14),
 
-          // Action Link
           GestureDetector(
             onTap: () async {
               final uri = Uri.parse(sub.tiktokVideoUrl);
