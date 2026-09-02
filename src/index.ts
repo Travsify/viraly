@@ -9,6 +9,7 @@ import redirectRouter from './routes/redirect.js';
 import campaignsRouter from './routes/campaigns.js';
 import submissionsRouter from './routes/submissions.js';
 import walletsRouter from './routes/wallets.js';
+import profilesRouter from './routes/profiles.js';
 import webhooksRouter from './routes/webhooks.js';
 import adminRouter from './routes/admin.js';
 import { getAdminHtml } from './admin-ui.js';
@@ -50,6 +51,7 @@ app.use('/', redirectRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/submissions', submissionsRouter);
 app.use('/api/wallets', walletsRouter);
+app.use('/api/profiles', profilesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/admin', adminRouter);
 
