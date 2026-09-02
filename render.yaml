@@ -1,17 +1,21 @@
 services:
   - type: web
-    name: iswitch
+    name: viraly-api
     env: node
+    plan: starter
     buildCommand: npm install && npm run build
-    startCommand: npm run preview
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        value: postgresql://postgres.ffpcnnxoyklepylgywnt:Forgetpassword2024.@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
       - key: SUPABASE_URL
-        value: https://biqdckcyteswvwcrzuvc.supabase.co
-      - key: SUPABASE_PUBLISHABLE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpcWRja2N5dGVzd3Z3Y3J6dXZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzYzODMsImV4cCI6MjA5MjY1MjM4M30.nb1xRdVHMecYPEhLYPia76tzoWpmf0qBxfgDxOdZ_qg
-      - key: VITE_SUPABASE_PROJECT_ID
-        value: biqdckcyteswvwcrzuvc
-      - key: VITE_SUPABASE_URL
-        value: https://biqdckcyteswvwcrzuvc.supabase.co
-      - key: VITE_SUPABASE_PUBLISHABLE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpcWRja2N5dGVzd3Z3Y3J6dXZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzYzODMsImV4cCI6MjA5MjY1MjM4M30.nb1xRdVHMecYPEhLYPia76tzoWpmf0qBxfgDxOdZ_qg
+        value: https://ffpcnnxoyklepylgywnt.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_86lbbyxWOSKZhbxnP9r1cw_wuAUYEq7
+      - key: IP_SALT
+        value: viraly_secret_salt_2026_nigeria
