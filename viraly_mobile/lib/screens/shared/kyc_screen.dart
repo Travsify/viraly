@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../core/constants.dart';
 import '../../models/profile.dart';
 
 class KycScreen extends StatefulWidget {
@@ -37,22 +40,39 @@ class _KycScreenState extends State<KycScreen> {
     setState(() { _isSaving = true; _errorMsg = null; });
 
     try {
-      // Store only last 4 digits of BVN — never store full BVN
-      final bvnLast4 = bvn.substring(7);
-      final nin = _ninController.text.trim();
+      final session = Supabase.instance.client.auth.currentSession;
+      final token = session?.accessToken ?? '';
 
-      await Supabase.instance.client.from('profiles').update({
-        'bvn_verified': true,
-        'bvn_last4': bvnLast4,
-        if (nin.length == 11) 'nin_last4': nin.substring(7),
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', widget.profile.id);
+      // Live verification with Prembly IdentityPass / NIBSS
+      final response = await http.post(
+        Uri.parse('${ViralyConstants.apiBaseUrl}/api/kyc/verify-bvn'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'bvn': bvn,
+          'nin': _ninController.text.trim(),
+        }),
+      );
 
-      if (mounted) {
-        widget.onVerified();
+      final resJson = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && resJson['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ Verified: ${resJson["verified_name"] ?? "BVN confirmed via NIBSS"}'),
+              backgroundColor: ViralyTheme.emerald,
+            ),
+          );
+          widget.onVerified();
+        }
+      } else {
+        setState(() => _errorMsg = resJson['error'] ?? 'BVN verification failed with NIBSS.');
       }
     } catch (e) {
-      setState(() => _errorMsg = 'Verification failed. Please try again.');
+      setState(() => _errorMsg = 'Network error during verification. Please try again.');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -91,7 +111,7 @@ class _KycScreenState extends State<KycScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Nigerian regulations require BVN verification before receiving payouts above ₦10,000.',
+                          'Verified instantly against the NIBSS regulatory registry via Prembly IdentityPass.',
                           style: TextStyle(fontSize: 11, color: ViralyTheme.textSecondary, height: 1.4),
                         ),
                       ],
@@ -137,7 +157,7 @@ class _KycScreenState extends State<KycScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            Text('Your BVN is encrypted. Only the last 4 digits are stored.', style: TextStyle(fontSize: 10, color: ViralyTheme.textMuted)),
+            Text('Verified securely with NIBSS. Only the last 4 digits are retained.', style: TextStyle(fontSize: 10, color: ViralyTheme.textMuted)),
             const SizedBox(height: 20),
             const Text('NIN (OPTIONAL)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1, color: ViralyTheme.textMuted)),
             const SizedBox(height: 8),
@@ -192,7 +212,7 @@ class _KycScreenState extends State<KycScreen> {
                         children: [
                           Icon(LucideIcons.shieldCheck, size: 18),
                           SizedBox(width: 8),
-                          Text('Verify My Identity', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                          Text('Verify with Prembly IdentityPass', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
                         ],
                       ),
               ),

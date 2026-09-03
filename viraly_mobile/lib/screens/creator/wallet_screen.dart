@@ -273,12 +273,11 @@ class _WalletScreenState extends State<WalletScreen> {
                         Navigator.pop(modalCtx);
 
                         try {
-                          final userId = widget.profile?.id ?? SupabaseService.currentUser!.id;
                           await SupabaseService.requestWithdrawal(
-                            walletId: wallet.id,
-                            userId: userId,
                             amount: enteredAmount,
-                            bankDetailsDescription: '$selectedBankName ($accNum)${resolvedAccountName != null ? " - $resolvedAccountName" : ""}',
+                            bankCode: selectedBankCode,
+                            accountNumber: accNum,
+                            accountName: resolvedAccountName ?? selectedBankName,
                           );
 
                           setState(() {

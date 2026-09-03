@@ -150,34 +150,34 @@ class SupabaseService {
     }
   }
 
-  // 8. Request Cashout / Withdrawal
+  // 8. Request Cashout / Withdrawal via Bank-Grade Secure API
   static Future<void> requestWithdrawal({
-    required String walletId,
-    required String userId,
     required double amount,
-    required String bankDetailsDescription,
+    required String bankCode,
+    required String accountNumber,
+    required String accountName,
   }) async {
-    final ref = 'wdr_${DateTime.now().millisecondsSinceEpoch}_${userId.substring(0, 5)}';
+    final session = _client.auth.currentSession;
+    final token = session?.accessToken ?? '';
 
-    // Deduct from wallet balance
-    await _client.rpc('decrement_wallet_balance', params: {
-      'p_wallet_id': walletId,
-      'p_amount': amount,
-    }).catchError((_) async {
-      final w = await _client.from('wallets').select('available_balance').eq('id', walletId).single();
-      final currentBal = (w['available_balance'] as num).toDouble();
-      await _client.from('wallets').update({'available_balance': currentBal - amount}).eq('id', walletId);
-    });
+    final res = await http.post(
+      Uri.parse('${ViralyConstants.apiBaseUrl}/api/wallets/withdraw'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'amount': amount,
+        'bank_code': bankCode,
+        'account_number': accountNumber,
+        'account_name': accountName,
+      }),
+    );
 
-    // Record transaction
-    await _client.from('transactions').insert({
-      'wallet_id': walletId,
-      'type': 'withdrawal',
-      'amount': amount,
-      'status': 'pending',
-      'reference': ref,
-      'description': 'Cashout to $bankDetailsDescription',
-    });
+    if (res.statusCode != 200) {
+      final json = jsonDecode(res.body);
+      throw Exception(json['error'] ?? 'Cashout request failed.');
+    }
   }
 
   // 9. Agency Operations

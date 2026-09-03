@@ -13,6 +13,7 @@ import profilesRouter from './routes/profiles.js';
 import webhooksRouter from './routes/webhooks.js';
 import adminRouter from './routes/admin.js';
 import agencyRouter from './routes/agency.js';
+import kycRouter from './routes/kyc.js';
 import { getAdminHtml } from './admin-ui.js';
 import { errorHandler } from './middleware/error.js';
 import { startBackgroundWorker } from './services/cron.js';
@@ -56,6 +57,7 @@ app.use('/api/profiles', profilesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/agency', agencyRouter);
+app.use('/api/kyc', kycRouter);
 
 // 5. Global Error Handler
 app.use(errorHandler);

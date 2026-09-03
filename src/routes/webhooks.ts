@@ -4,13 +4,53 @@ import { query } from '../config/db.js';
 
 const router = Router();
 
+// ─── POST /api/webhooks/flutterwave ────────────────────────────────────────
+// Flutterwave server-to-server webhook for campaign escrow funding
+router.post('/flutterwave', async (req: Request, res: Response) => {
+  try {
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH || 'hometrust_flw_webhook_secret_2026';
+    const signature = req.headers['verif-hash'];
+
+    if (secretHash && signature !== secretHash) {
+      console.warn('[Webhook] Invalid Flutterwave secret hash rejected.');
+      return res.status(401).send('Invalid signature');
+    }
+
+    const payload = req.body;
+    console.log('[Webhook] Flutterwave event received:', payload.event, payload.data?.status);
+
+    if (payload.event === 'charge.completed' && payload.data?.status === 'successful') {
+      const data = payload.data;
+      const campaignId = data.meta?.campaign_id;
+      const amount = Number(data.amount || 0);
+
+      if (campaignId) {
+        await query(
+          `UPDATE public.campaigns 
+           SET status = 'active', 
+               total_budget = CASE WHEN total_budget = 0 THEN $1 ELSE total_budget END,
+               remaining_budget = CASE WHEN remaining_budget = 0 THEN $1 ELSE remaining_budget END,
+               updated_at = NOW() 
+           WHERE id = $2`,
+          [amount, campaignId]
+        );
+        console.log(`[Webhook] ✅ Campaign ${campaignId} ACTIVATED via Flutterwave escrow (₦${amount})`);
+      }
+    }
+
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('[Webhook] Flutterwave webhook error:', error);
+    return res.sendStatus(500);
+  }
+});
+
 // ─── POST /api/webhooks/paystack ───────────────────────────────────────────
-// Receives all Paystack server-to-server events. Verified via HMAC SHA512.
+// Paystack server-to-server webhook for escrow deposits and creator payouts
 router.post('/paystack', async (req: Request, res: Response) => {
   try {
     const paystackSecret = process.env.PAYSTACK_SECRET_KEY || '';
 
-    // 1. Verify webhook signature
     const hash = crypto
       .createHmac('sha512', paystackSecret)
       .update(JSON.stringify(req.body))
@@ -24,7 +64,7 @@ router.post('/paystack', async (req: Request, res: Response) => {
     const event = req.body;
     console.log('[Webhook] Paystack event received:', event.event);
 
-    // ── 2. Escrow/campaign funding confirmed ────────────────────────────────
+    // 1. Escrow deposit success
     if (event.event === 'charge.success') {
       const data = event.data;
       const amountInNaira = Number(data.amount) / 100;
@@ -32,7 +72,6 @@ router.post('/paystack', async (req: Request, res: Response) => {
       const reference = data.reference;
 
       if (campaignId) {
-        // Activate campaign and set budget
         await query(
           `UPDATE public.campaigns 
            SET status = 'active',
@@ -42,11 +81,11 @@ router.post('/paystack', async (req: Request, res: Response) => {
            WHERE id = $2`,
           [amountInNaira, campaignId]
         );
-        console.log(`[Webhook] ✅ Campaign ${campaignId} ACTIVATED — ₦${amountInNaira} escrow deposited (ref: ${reference})`);
+        console.log(`[Webhook] ✅ Campaign ${campaignId} ACTIVATED via Paystack escrow (₦${amountInNaira}, ref: ${reference})`);
       }
     }
 
-    // ── 3. Creator payout transfer confirmed ────────────────────────────────
+    // 2. Creator payout transfer confirmed
     if (event.event === 'transfer.success') {
       const data = event.data;
       const transferCode = data.transfer_code;
@@ -57,16 +96,15 @@ router.post('/paystack', async (req: Request, res: Response) => {
          WHERE reference = $1 OR description LIKE $2`,
         [transferCode, `%${transferCode}%`]
       );
-      console.log(`[Webhook] ✅ Transfer ${transferCode} marked as completed.`);
+      console.log(`[Webhook] ✅ Creator payout ${transferCode} marked as completed.`);
     }
 
-    // ── 4. Creator payout transfer failed ───────────────────────────────────
+    // 3. Creator payout transfer failed — reverse back to wallet
     if (event.event === 'transfer.failed' || event.event === 'transfer.reversed') {
       const data = event.data;
       const transferCode = data.transfer_code;
       const reason = data.gateway_response || event.event;
 
-      // Reverse the wallet deduction — credit back
       const txRes = await query(
         `SELECT wallet_id, amount FROM public.transactions WHERE reference = $1`,
         [transferCode]
@@ -82,13 +120,8 @@ router.post('/paystack', async (req: Request, res: Response) => {
           `UPDATE public.transactions SET status = 'failed', description = $1, updated_at = NOW() WHERE reference = $2`,
           [`Transfer failed: ${reason}`, transferCode]
         );
-        console.log(`[Webhook] ⚠️  Transfer ${transferCode} FAILED — ₦${amount} reversed back to wallet.`);
+        console.log(`[Webhook] ⚠️  Transfer ${transferCode} FAILED — ₦${amount} restored to creator wallet.`);
       }
-    }
-
-    // ── 5. Subscription or recurring payment events (future use) ────────────
-    if (event.event === 'subscription.create') {
-      console.log('[Webhook] New subscription created:', event.data?.subscription_code);
     }
 
     res.sendStatus(200);
