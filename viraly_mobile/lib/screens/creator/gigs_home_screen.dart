@@ -6,6 +6,7 @@ import '../../models/profile.dart';
 import '../../models/campaign.dart';
 import '../../models/wallet.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/tiktok_viral_banner.dart';
 import 'campaign_detail_screen.dart';
 
 class GigsHomeScreen extends StatefulWidget {
@@ -262,6 +263,11 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
                   },
                 ),
 
+                const SizedBox(height: 20),
+
+                // 2B. TIKTOK & GOING VIRAL SHOWCASE
+                const TiktokViralBanner(),
+
                 const SizedBox(height: 24),
 
                 // 3. CATEGORY FILTER PILLS
@@ -471,19 +477,26 @@ class _GigsHomeScreenState extends State<GigsHomeScreen> {
               ),
 
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: ViralyTheme.emerald.withAlpha(20),
-                  borderRadius: BorderRadius.circular(6),
+                  gradient: ViralyTheme.tiktokGradient,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(
-                  'ACTIVE POOL',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: ViralyTheme.emerald,
-                    letterSpacing: 0.5,
-                  ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.video, size: 10, color: Colors.white),
+                    SizedBox(width: 4),
+                    Text(
+                      'TIKTOK BOUNTY',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -25,18 +25,21 @@ Future<void> main() async {
     anonKey: ViralyConstants.supabaseAnonKey,
   );
 
-  // Initialize Sentry crash reporting for production monitoring
-  await SentryFlutter.init(
-    (options) {
-      options.dsn = 'https://examplePublicKey@o0.ingest.sentry.io/0';
-      options.environment = 'production';
-      options.release = 'viraly@1.0.0+1';
-      options.tracesSampleRate = 0.2;
-      options.attachScreenshot = false;
-      options.enableAutoSessionTracking = true;
-    },
-    appRunner: () => runApp(const ViralyApp()),
-  );
+  // Safe Sentry initialization — never block app launch
+  const sentryDsn = 'https://examplePublicKey@o0.ingest.sentry.io/0';
+  if (!sentryDsn.contains('example')) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.environment = 'production';
+        options.release = 'viraly@1.0.0+1';
+        options.tracesSampleRate = 0.2;
+      },
+      appRunner: () => runApp(const ViralyApp()),
+    );
+  } else {
+    runApp(const ViralyApp());
+  }
 }
 
 class ViralyApp extends StatelessWidget {

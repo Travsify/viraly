@@ -15,6 +15,10 @@ class ViralyTheme {
   static const Color rose = Color(0xFFF43F5E);
   static const Color amber = Color(0xFFF59E0B);
   
+  // TikTok & Viral Signature Accents
+  static const Color tiktokCyan = Color(0xFF00F2FE);
+  static const Color tiktokRed = Color(0xFFFE2C55);
+  
   // Text Colors
   static const Color textPrimary = Color(0xFFF8FAFC);
   static const Color textSecondary = Color(0xFF94A3B8);
@@ -81,5 +85,17 @@ class ViralyTheme {
     colors: [Color(0xFF131A29), Color(0xFF0E131F)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
+  );
+
+  static const LinearGradient tiktokGradient = LinearGradient(
+    colors: [tiktokCyan, tiktokRed],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient viralSurgeGradient = LinearGradient(
+    colors: [Color(0xFFFE2C55), Color(0xFF6366F1), Color(0xFF00F59B)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 }
