@@ -228,7 +228,7 @@ class SupabaseService {
       'description': description,
       'category': category,
       'objective': objective,
-      'status': 'active',
+      'status': 'pending_payment',
       'total_budget': totalBudget,
       'remaining_budget': totalBudget,
       'cpm_rate': cpmRate,

@@ -8,6 +8,8 @@ class UserProfile {
   final String? tiktokHandle;
   final String? bio;
   final bool isVerified;
+  final bool bvnVerified;
+  final String? bvnLast4;
   final DateTime createdAt;
 
   UserProfile({
@@ -20,6 +22,8 @@ class UserProfile {
     this.tiktokHandle,
     this.bio,
     required this.isVerified,
+    required this.bvnVerified,
+    this.bvnLast4,
     required this.createdAt,
   });
 
@@ -34,6 +38,8 @@ class UserProfile {
       tiktokHandle: json['tiktok_handle'] as String?,
       bio: json['bio'] as String?,
       isVerified: json['is_verified'] as bool? ?? false,
+      bvnVerified: json['bvn_verified'] as bool? ?? false,
+      bvnLast4: json['bvn_last4'] as String?,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }

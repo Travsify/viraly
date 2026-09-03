@@ -6,6 +6,7 @@ import '../../core/theme.dart';
 import '../../models/campaign.dart';
 import '../../models/profile.dart';
 import '../../services/supabase_service.dart';
+import '../shared/profile_screen.dart';
 
 class CampaignDetailScreen extends StatefulWidget {
   final Campaign campaign;
@@ -312,49 +313,96 @@ class _CampaignDetailScreenState extends State<CampaignDetailScreen> {
               const SizedBox(height: 14),
             ],
 
-            Container(
-              decoration: BoxDecoration(
-                color: ViralyTheme.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: ViralyTheme.border),
-              ),
-              child: TextField(
-                controller: _tiktokUrlController,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'https://www.tiktok.com/@yourname/video/728...',
-                  hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 12),
-                  prefixIcon: const Icon(LucideIcons.video, color: ViralyTheme.textMuted, size: 18),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            if (widget.profile?.tiktokHandle == null || widget.profile!.tiktokHandle!.trim().isEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: ViralyTheme.amber.withAlpha(20),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: ViralyTheme.amber.withAlpha(80)),
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _handleSubmitVideo,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ViralyTheme.emerald,
-                  foregroundColor: const Color(0xFF07090E),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF07090E)),
-                      )
-                    : const Text(
-                        'Submit Video for Live Tracking',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(LucideIcons.alertCircle, color: ViralyTheme.amber, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'TikTok Username Required',
+                          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Please link your TikTok handle in Account Settings before submitting videos so our AI auditor can attribute your views & earnings.',
+                      style: TextStyle(color: ViralyTheme.textSecondary, fontSize: 12, height: 1.4),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ProfileScreen(profile: widget.profile)),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ViralyTheme.amber,
+                        foregroundColor: const Color(0xFF07090E),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
+                      child: const Text('Add TikTok Handle Now', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ] else ...[
+              Container(
+                decoration: BoxDecoration(
+                  color: ViralyTheme.surface,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: ViralyTheme.border),
+                ),
+                child: TextField(
+                  controller: _tiktokUrlController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'https://www.tiktok.com/@yourname/video/728...',
+                    hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 12),
+                    prefixIcon: const Icon(LucideIcons.video, color: ViralyTheme.textMuted, size: 18),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _handleSubmitVideo,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ViralyTheme.emerald,
+                    foregroundColor: const Color(0xFF07090E),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF07090E)),
+                        )
+                      : const Text(
+                          'Submit Video for Live Tracking',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                        ),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 32),
           ],

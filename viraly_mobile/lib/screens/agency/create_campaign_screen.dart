@@ -1,7 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
+import '../../core/constants.dart';
 import '../../models/profile.dart';
 import '../../services/supabase_service.dart';
+import 'paystack_checkout_screen.dart';
 
 class CreateCampaignScreen extends StatefulWidget {
   final UserProfile? profile;
@@ -50,6 +55,8 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     }
 
     final agencyId = widget.profile?.id ?? SupabaseService.currentUser?.id;
+    final email = widget.profile?.email ?? SupabaseService.currentUser?.email ?? '';
+
     if (agencyId == null) {
       setState(() => _errorMessage = 'Please sign in to launch a campaign.');
       return;
@@ -61,7 +68,8 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
     });
 
     try {
-      await SupabaseService.createCampaign(
+      // 1. Create campaign in Supabase with status = 'pending_payment'
+      final campaign = await SupabaseService.createCampaign(
         agencyId: agencyId,
         title: title,
         description: desc,
@@ -73,11 +81,60 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
         targetUrl: targetUrl.isNotEmpty ? targetUrl : null,
       );
 
-      if (mounted) {
+      // 2. Initialize Paystack checkout to collect real escrow payment
+      final session = Supabase.instance.client.auth.currentSession;
+      final token = session?.accessToken ?? '';
+
+      final fundRes = await http.post(
+        Uri.parse('${ViralyConstants.apiBaseUrl}/api/agency/campaigns/fund'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'campaign_id': campaign.id,
+          'amount': budget,
+          'email': email,
+        }),
+      );
+
+      if (fundRes.statusCode != 200) {
+        // Campaign created but payment init failed — show fallback
+        throw Exception('Payment initialization failed. Campaign saved as draft.');
+      }
+
+      final fundJson = jsonDecode(fundRes.body) as Map<String, dynamic>;
+      final authorizationUrl = fundJson['authorization_url'] as String?;
+
+      if (authorizationUrl == null) {
+        throw Exception('No payment URL received from server.');
+      }
+
+      if (!mounted) return;
+
+      // 3. Open Paystack Checkout WebView
+      final paymentSuccess = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaystackCheckoutScreen(authorizationUrl: authorizationUrl),
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (paymentSuccess == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('🎉 Campaign launched & escrow pool funded successfully!'),
+            content: Text('🎉 Escrow funded! Campaign is now live — creators will see it shortly.'),
             backgroundColor: ViralyTheme.emerald,
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Campaign saved as draft. Complete payment to activate it.'),
+            backgroundColor: ViralyTheme.amber,
           ),
         );
         Navigator.pop(context);
@@ -114,12 +171,11 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
               const SizedBox(height: 16),
             ],
 
-            _buildField('Campaign Title', _titleController, 'e.g. Rentilly Housing Virality'),
+            _buildField('Campaign Title', _titleController, 'e.g. My Brand Virality Campaign'),
             const SizedBox(height: 14),
             _buildField('Creative Brief & Instructions', _descController, 'Explain what creators should do in their 30s TikTok.', maxLines: 3),
             const SizedBox(height: 14),
 
-            // Category & Objective
             Row(
               children: [
                 Expanded(
@@ -147,6 +203,7 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
                               DropdownMenuItem(value: 'Real Estate', child: Text('Real Estate')),
                               DropdownMenuItem(value: 'Food & Delivery', child: Text('Food & Delivery')),
                               DropdownMenuItem(value: 'Fashion', child: Text('Fashion')),
+                              DropdownMenuItem(value: 'Lifestyle', child: Text('Lifestyle')),
                             ],
                             onChanged: (val) {
                               if (val != null) setState(() => _category = val);
@@ -196,18 +253,41 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
 
             const SizedBox(height: 14),
 
-            // Escrow & Rates
             Row(
               children: [
                 Expanded(child: _buildField('Escrow Budget (₦)', _budgetController, '500000', keyboardType: TextInputType.number)),
                 const SizedBox(width: 12),
-                Expanded(child: _buildField('CPM Rate (₦/10k)', _cpmController, '1500', keyboardType: TextInputType.number)),
+                Expanded(child: _buildField('CPM Rate (₦/10k views)', _cpmController, '1500', keyboardType: TextInputType.number)),
               ],
             ),
 
             const SizedBox(height: 14),
 
-            _buildField('Target App / Website URL', _targetUrlController, 'https://rentilly.com/download', keyboardType: TextInputType.url),
+            _buildField('Target App / Website URL', _targetUrlController, 'https://yourbrand.com/download', keyboardType: TextInputType.url),
+
+            const SizedBox(height: 12),
+
+            // Paystack payment info badge
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: ViralyTheme.emerald.withAlpha(15),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ViralyTheme.emerald.withAlpha(60)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline, color: ViralyTheme.emerald, size: 16),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Escrow is collected securely via Paystack. Creators are only paid per verified view or qualified click.',
+                      style: TextStyle(fontSize: 11, color: ViralyTheme.textSecondary, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
             const SizedBox(height: 28),
 
@@ -223,9 +303,11 @@ class _CreateCampaignScreenState extends State<CreateCampaignScreen> {
                 ),
                 child: _isLoading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Fund Pool & Launch Campaign', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                    : const Text('Pay Escrow & Launch Campaign', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
               ),
             ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),

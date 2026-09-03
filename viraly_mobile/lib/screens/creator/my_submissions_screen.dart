@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme.dart';
 import '../../models/profile.dart';
@@ -18,21 +19,59 @@ class MySubmissionsScreen extends StatefulWidget {
 
 class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
   final currencyFormatter = NumberFormat('#,##0', 'en_US');
-  late Future<List<Submission>> _submissionsFuture;
+  List<Submission> _submissions = [];
+  bool _isLoading = true;
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _loadSubmissions();
+    _subscribeRealtime();
   }
 
-  void _loadSubmissions() {
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
+
+  Future<void> _loadSubmissions() async {
     final userId = widget.profile?.id ?? SupabaseService.currentUser?.id;
-    if (userId != null) {
-      _submissionsFuture = SupabaseService.fetchMySubmissions(userId);
-    } else {
-      _submissionsFuture = Future.value([]);
+    if (userId == null) {
+      setState(() => _isLoading = false);
+      return;
     }
+    try {
+      final subs = await SupabaseService.fetchMySubmissions(userId);
+      if (mounted) setState(() { _submissions = subs; _isLoading = false; });
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _subscribeRealtime() {
+    final userId = widget.profile?.id ?? SupabaseService.currentUser?.id;
+    if (userId == null) return;
+
+    // Subscribe to Supabase Realtime for live view & earnings updates
+    _channel = Supabase.instance.client
+        .channel('submissions:creator:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'submissions',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'creator_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            // Refresh the list when any submission row changes
+            if (mounted) _loadSubmissions();
+          },
+        )
+        .subscribe();
   }
 
   @override
@@ -43,70 +82,55 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
         title: const Text('My Video Submissions', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {
-            _loadSubmissions();
-          });
-        },
+        onRefresh: _loadSubmissions,
         color: ViralyTheme.emerald,
         backgroundColor: ViralyTheme.surface,
-        child: FutureBuilder<List<Submission>>(
-          future: _submissionsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
+        child: _isLoading
+            ? const Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(ViralyTheme.emerald),
                 ),
-              );
-            }
-
-            final list = snapshot.data ?? [];
-
-            if (list.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              )
+            : _submissions.isEmpty
+                ? ListView(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: const BoxDecoration(
-                          color: ViralyTheme.surface,
-                          shape: BoxShape.circle,
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: const BoxDecoration(color: ViralyTheme.surface, shape: BoxShape.circle),
+                                  child: const Icon(LucideIcons.video, size: 40, color: ViralyTheme.textMuted),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text('No Submissions Yet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Go to the Gigs tab, select an active campaign, and submit your TikTok video URL.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 13, color: ViralyTheme.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: const Icon(LucideIcons.video, size: 40, color: ViralyTheme.textMuted),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No Submissions Yet',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Go to the Gigs tab, select an active campaign, and submit your TikTok video URL.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: ViralyTheme.textSecondary),
                       ),
                     ],
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: _submissions.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      return _buildSubmissionCard(_submissions[index]);
+                    },
                   ),
-                ),
-              );
-            }
-
-            return ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: list.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 14),
-              itemBuilder: (context, index) {
-                final sub = list[index];
-                return _buildSubmissionCard(sub);
-              },
-            );
-          },
-        ),
       ),
     );
   }
@@ -118,7 +142,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
     switch (sub.status) {
       case 'tracking':
         statusColor = ViralyTheme.emerald;
-        statusLabel = 'LIVE TRACKING';
+        statusLabel = '🔴 LIVE TRACKING';
         break;
       case 'pending_review':
         statusColor = ViralyTheme.amber;
@@ -138,7 +162,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
       decoration: BoxDecoration(
         color: ViralyTheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: ViralyTheme.border),
+        border: Border.all(color: sub.status == 'tracking' ? ViralyTheme.emerald.withAlpha(80) : ViralyTheme.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,20 +170,21 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                sub.campaignTitle ?? 'Brand Campaign',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+              Expanded(
+                child: Text(
+                  sub.campaignTitle ?? 'Brand Campaign',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: statusColor.withAlpha(25),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.5),
-                ),
+                child: Text(statusLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.5)),
               ),
             ],
           ),
@@ -171,19 +196,13 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: ViralyTheme.surfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: ViralyTheme.surfaceElevated, borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('LIVE VIEWS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: ViralyTheme.textMuted)),
                       const SizedBox(height: 4),
-                      Text(
-                        currencyFormatter.format(sub.currentViews),
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
-                      ),
+                      Text(currencyFormatter.format(sub.currentViews), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
                     ],
                   ),
                 ),
@@ -192,19 +211,13 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: ViralyTheme.surfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  decoration: BoxDecoration(color: ViralyTheme.surfaceElevated, borderRadius: BorderRadius.circular(12)),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('EARNED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: ViralyTheme.textMuted)),
                       const SizedBox(height: 4),
-                      Text(
-                        '₦${currencyFormatter.format(sub.totalEarnings)}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: ViralyTheme.emerald),
-                      ),
+                      Text('₦${currencyFormatter.format(sub.totalEarnings)}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: ViralyTheme.emerald)),
                     ],
                   ),
                 ),
@@ -225,10 +238,7 @@ class _MySubmissionsScreenState extends State<MySubmissionsScreen> {
               children: [
                 const Icon(LucideIcons.video, size: 14, color: ViralyTheme.indigo),
                 const SizedBox(width: 6),
-                Text(
-                  'Watch Video on TikTok ↗',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ViralyTheme.indigo),
-                ),
+                Text('Watch Video on TikTok ↗', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ViralyTheme.indigo)),
               ],
             ),
           ),

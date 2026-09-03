@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../models/profile.dart';
 import '../../models/wallet.dart';
 import '../../services/supabase_service.dart';
+import '../shared/kyc_screen.dart';
 
 class WalletScreen extends StatefulWidget {
   final UserProfile? profile;
@@ -412,7 +413,29 @@ class _WalletScreenState extends State<WalletScreen> {
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: () => _openCashoutModal(wallet, bankAccounts),
+                            onPressed: () {
+                              final prof = widget.profile;
+                              // Gate cashout behind KYC verification
+                              if (prof != null && !prof.bvnVerified) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => KycScreen(
+                                      profile: prof,
+                                      onVerified: () {
+                                        Navigator.pop(context);
+                                        setState(() => _loadWalletData());
+                                        Future.delayed(const Duration(milliseconds: 400), () {
+                                          if (mounted) _openCashoutModal(wallet, bankAccounts);
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                );
+                              } else {
+                                _openCashoutModal(wallet, bankAccounts);
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: ViralyTheme.emerald,
                               foregroundColor: const Color(0xFF07090E),
