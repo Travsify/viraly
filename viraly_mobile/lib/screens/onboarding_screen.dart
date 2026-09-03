@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../core/theme.dart';
-import 'auth/login_screen.dart';
+import 'auth/role_selection_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -12,259 +12,272 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  String _selectedRole = 'creator'; // 'creator' or 'agency'
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+
+  final List<Map<String, dynamic>> _slides = [
+    {
+      'badge': 'TIKTOK MONETIZATION',
+      'badgeColor': ViralyTheme.tiktokCyan,
+      'icon': LucideIcons.video,
+      'iconColor': ViralyTheme.tiktokRed,
+      'title': 'Turn TikTok Views\nInto Real Cash',
+      'highlight': 'Real Cash',
+      'description':
+          'African creators and clippers earn per 10,000 verified views on published TikToks. No follower minimums or agency gatekeeping.',
+    },
+    {
+      'badge': 'ESCROW BACKED',
+      'badgeColor': ViralyTheme.emerald,
+      'icon': LucideIcons.shieldCheck,
+      'iconColor': ViralyTheme.emerald,
+      'title': 'Escrow-Guaranteed\nAutomated Payouts',
+      'highlight': 'Automated Payouts',
+      'description':
+          'Brands and agencies fund bounties upfront into escrow. Our automated auditor verifies views every 15 minutes and credits your wallet.',
+    },
+    {
+      'badge': 'INSTANT CASHOUT',
+      'badgeColor': ViralyTheme.indigo,
+      'icon': LucideIcons.wallet,
+      'iconColor': ViralyTheme.indigo,
+      'title': 'Withdraw Straight\nTo OPay or Bank',
+      'highlight': 'OPay or Bank',
+      'description':
+          'Instant Paystack NIP disbursals to all Nigerian commercial banks, OPay, PalmPay, and Kuda. Zero withdrawal delays.',
+    },
+  ];
+
+  void _onNext() {
+    if (_currentPage < _slides.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _navigateToRoleSelection();
+    }
+  }
+
+  void _navigateToRoleSelection() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ViralyTheme.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Brand Header
-              Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      gradient: ViralyTheme.emeraldGradient,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'V',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF07090E),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'VIRALY',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-
-              const Spacer(),
-
-              // Headline
-              RichText(
-                text: const TextSpan(
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    height: 1.15,
-                  ),
-                  children: [
-                    TextSpan(text: 'Virality is the new\n'),
-                    TextSpan(
-                      text: 'Financial Freedom.',
-                      style: TextStyle(color: ViralyTheme.emerald),
-                    ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0),
-
-              const SizedBox(height: 12),
-
-              Text(
-                'African creators earn per verified view. Brands & apps scale organically with zero ad waste.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: ViralyTheme.textSecondary,
-                  height: 1.4,
-                ),
-              ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
-
-              const SizedBox(height: 36),
-
-              // Role Selector Heading
-              const Text(
-                'CHOOSE YOUR PRIMARY GOAL',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                  color: ViralyTheme.textMuted,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Role Card 1: Creator
-              _buildRoleCard(
-                role: 'creator',
-                title: 'I am a Creator / Clipper',
-                description: 'Make TikTok videos, share links, and withdraw cash straight to OPay or bank.',
-                icon: LucideIcons.sparkles,
-                badgeText: 'EARN PER VIEW',
-                badgeColor: ViralyTheme.emerald,
-              ),
-
-              const SizedBox(height: 12),
-
-              // Role Card 2: Agency / Brand
-              _buildRoleCard(
-                role: 'agency',
-                title: 'I am a Brand / Agency',
-                description: 'Fund an escrow pool, test 50+ viral angles, and only pay for verified reach.',
-                icon: LucideIcons.rocket,
-                badgeText: 'SCALE VIRALLY',
-                badgeColor: ViralyTheme.indigo,
-              ),
-
-              const Spacer(),
-
-              // CTA Button
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => LoginScreen(initialRole: _selectedRole),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ViralyTheme.emerald,
-                    foregroundColor: const Color(0xFF07090E),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    shadowColor: ViralyTheme.emerald.withAlpha(90),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Continue to Sign In',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(LucideIcons.arrowRight, size: 18),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleCard({
-    required String role,
-    required String title,
-    required String description,
-    required IconData icon,
-    required String badgeText,
-    required Color badgeColor,
-  }) {
-    final isSelected = _selectedRole == role;
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: isSelected ? ViralyTheme.surfaceElevated : ViralyTheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? ViralyTheme.emerald : ViralyTheme.border,
-            width: isSelected ? 2 : 1,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: ViralyTheme.emerald.withAlpha(30),
-                    blurRadius: 18,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isSelected ? ViralyTheme.emerald.withAlpha(30) : ViralyTheme.border,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                icon,
-                color: isSelected ? ViralyTheme.emerald : ViralyTheme.textSecondary,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            // Top Bar: Logo & Skip
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          color: badgeColor.withAlpha(30),
-                          borderRadius: BorderRadius.circular(6),
+                          gradient: ViralyTheme.emeraldGradient,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          badgeText,
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            color: badgeColor,
-                            letterSpacing: 0.5,
+                        child: const Center(
+                          child: Text(
+                            'V',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF07090E),
+                            ),
                           ),
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'VIRALY',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          color: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: ViralyTheme.textSecondary,
-                      height: 1.35,
+                  if (_currentPage < _slides.length - 1)
+                    TextButton(
+                      onPressed: _navigateToRoleSelection,
+                      style: TextButton.styleFrom(
+                        foregroundColor: ViralyTheme.textSecondary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      child: const Text(
+                        'Skip',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // 3 Carousel Slides
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _slides.length,
+                onPageChanged: (idx) => setState(() => _currentPage = idx),
+                itemBuilder: (context, idx) {
+                  final slide = _slides[idx];
+                  final badgeColor = slide['badgeColor'] as Color;
+                  final iconColor = slide['iconColor'] as Color;
+                  final icon = slide['icon'] as IconData;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Center Art / Icon Frame
+                        Center(
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: ViralyTheme.surfaceElevated,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: iconColor.withAlpha(80), width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: iconColor.withAlpha(40),
+                                  blurRadius: 36,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Icon(icon, size: 54, color: iconColor),
+                            ),
+                          ),
+                        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+
+                        const SizedBox(height: 48),
+
+                        // Pill Badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withAlpha(25),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: badgeColor.withAlpha(80)),
+                          ),
+                          child: Text(
+                            slide['badge'] as String,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: badgeColor,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Slide Title
+                        Text(
+                          slide['title'] as String,
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1.15,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // Description
+                        Text(
+                          slide['description'] as String,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: ViralyTheme.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Bottom Navigation & Controls
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+              child: Column(
+                children: [
+                  // Dot Indicators
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      _slides.length,
+                      (idx) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: _currentPage == idx ? 28 : 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _currentPage == idx ? ViralyTheme.emerald : ViralyTheme.border,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Next / Get Started Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _onNext,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ViralyTheme.emerald,
+                        foregroundColor: const Color(0xFF07090E),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _currentPage == _slides.length - 1 ? 'Choose Your Role' : 'Next',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(LucideIcons.arrowRight, size: 18),
+                        ],
+                      ),
                     ),
                   ),
                 ],

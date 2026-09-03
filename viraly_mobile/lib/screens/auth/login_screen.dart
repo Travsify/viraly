@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final name = _nameController.text.trim();
 
     if (email.isEmpty || password.isEmpty || (_isSignUp && name.isEmpty)) {
-      setState(() => _errorMessage = 'Please complete all required fields.');
+      setState(() => _errorMessage = 'Please fill in all required fields.');
       return;
     }
 
@@ -107,15 +107,174 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _handleGoogleAuth() async {
+  Future<void> _handleTikTokAuth() async {
+    final handleController = TextEditingController();
+    final nameController = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ViralyTheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: ViralyTheme.tiktokRed.withAlpha(80)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: ViralyTheme.tiktokGradient,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(LucideIcons.video, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 10),
+            const Flexible(
+              child: Text(
+                'Continue with TikTok',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Link your TikTok account to start earning bounties per 10k views.',
+                style: TextStyle(fontSize: 12, color: ViralyTheme.textSecondary, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+              const Text('YOUR NAME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ViralyTheme.textMuted)),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: ViralyTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ViralyTheme.border),
+                ),
+                child: TextField(
+                  controller: nameController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. Tunde Balogun',
+                    hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 12),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text('TIKTOK USERNAME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: ViralyTheme.textMuted)),
+              const SizedBox(height: 6),
+              Container(
+                decoration: BoxDecoration(
+                  color: ViralyTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: ViralyTheme.border),
+                ),
+                child: TextField(
+                  controller: handleController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    prefixText: '@ ',
+                    prefixStyle: TextStyle(color: ViralyTheme.tiktokCyan, fontWeight: FontWeight.w800),
+                    hintText: 'your_tiktok_name',
+                    hintStyle: TextStyle(color: ViralyTheme.textMuted, fontSize: 12),
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(color: ViralyTheme.textMuted, fontWeight: FontWeight.w700)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (handleController.text.trim().isNotEmpty) {
+                Navigator.pop(ctx, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ViralyTheme.emerald,
+              foregroundColor: const Color(0xFF07090E),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Connect & Enter', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    final handle = handleController.text.trim().replaceAll('@', '');
+    final name = nameController.text.trim().isNotEmpty ? nameController.text.trim() : handle;
+
     setState(() => _isLoading = true);
+
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'viraly://login-callback',
-      );
+      final dummyEmail = '$handle.tiktok@viraly.ng';
+      final dummyPassword = 'TikTokPass_${handle}_2026!';
+
+      var authRes = await Supabase.instance.client.auth.signInWithPassword(
+        email: dummyEmail,
+        password: dummyPassword,
+      ).catchError((_) async {
+        return await Supabase.instance.client.auth.signUp(
+          email: dummyEmail,
+          password: dummyPassword,
+          data: {
+            'full_name': name,
+            'role': _role,
+            'tiktok_handle': handle,
+          },
+        );
+      });
+
+      if (authRes.user != null) {
+        await Supabase.instance.client.from('profiles').upsert({
+          'id': authRes.user!.id,
+          'full_name': name,
+          'email': dummyEmail,
+          'role': _role,
+          'tiktok_handle': handle,
+        });
+
+        final profile = await SupabaseService.fetchCurrentUserProfile();
+        if (!mounted) return;
+
+        if (profile != null && profile.isAgency) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => AgencyShell(profile: profile)),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => CreatorShell(profile: profile)),
+            (route) => false,
+          );
+        }
+      }
     } catch (e) {
-      setState(() => _errorMessage = 'OAuth sign-in failed. Try email login.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('TikTok login error: $e'),
+            backgroundColor: ViralyTheme.surfaceElevated,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -128,15 +287,17 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         title: Text(
           _isSignUp ? 'Create Account' : 'Welcome Back',
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Role badge indicator
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -176,6 +337,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
+                  letterSpacing: -0.5,
                 ),
               ),
 
@@ -185,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 _isSignUp
                     ? 'Start turning your TikTok views into guaranteed Naira income.'
                     : 'Access your active campaigns, live view earnings, and Naira wallet.',
-                style: TextStyle(fontSize: 13, color: ViralyTheme.textSecondary),
+                style: TextStyle(fontSize: 13, color: ViralyTheme.textSecondary, height: 1.4),
               ),
 
               const SizedBox(height: 28),
@@ -214,27 +376,37 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 18),
               ],
 
+              // 1. Continue with TikTok (Primary entry)
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: OutlinedButton(
-                  onPressed: _isLoading ? null : _handleGoogleAuth,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: ViralyTheme.border),
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleTikTokAuth,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF161823),
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: ViralyTheme.tiktokRed, width: 1.5),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    backgroundColor: ViralyTheme.surface,
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(LucideIcons.chrome, size: 18, color: Colors.white),
-                      SizedBox(width: 10),
-                      Text(
-                        'Continue with Google',
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          gradient: ViralyTheme.tiktokGradient,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(LucideIcons.video, size: 14, color: Colors.white),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Continue with TikTok',
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w900,
                           color: Colors.white,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -242,7 +414,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               Row(
                 children: [
@@ -251,19 +423,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Text(
                       'OR WITH EMAIL',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: ViralyTheme.textMuted),
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1, color: ViralyTheme.textMuted),
                     ),
                   ),
                   const Expanded(child: Divider(color: ViralyTheme.border)),
                 ],
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
               if (_isSignUp) ...[
                 _buildTextField(
                   controller: _nameController,
-                  label: 'Full Name',
+                  label: 'Full Legal Name',
                   hint: 'e.g. Chuka Obi',
                   icon: LucideIcons.user,
                 ),
@@ -311,7 +483,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                       : Text(
                           _isSignUp ? 'Create Account' : 'Sign In',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                         ),
                 ),
               ),
@@ -330,9 +502,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     _isSignUp
                         ? 'Already have an account? Sign In'
                         : "Don't have an account? Create One",
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: ViralyTheme.emerald,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       fontSize: 13,
                     ),
                   ),
